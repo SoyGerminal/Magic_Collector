@@ -2,8 +2,10 @@ import sys
 import sqlite3
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QLineEdit, QComboBox, QDialog, QDialogButtonBox, QLabel, QMessageBox
 from PySide6.QtCore import Qt
-from database import obtener_colecciones, RUTA_BD  # Añadido RUTA_BD
+from PySide6.QtGui import QPixmap
+from database import obtener_colecciones, RUTA_BD
 from scryfall import ScryFall
+import os
 
 class DialogoAgregarCarta(QDialog):
     def __init__(self, cartas, colecciones, parent=None):
@@ -46,30 +48,74 @@ class DialogoAgregarCarta(QDialog):
 class MagicCollectionApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Magic Collector")  # Cambiado a "Magic Collector"
-        self.resize(800, 600)
+        self.setWindowTitle("Magic Collector")
+        self.resize(1000, 600)
 
         # Widget y layout principal
         self.widget_central = QWidget()
         self.setCentralWidget(self.widget_central)
-        self.layout_principal = QVBoxLayout()
+        self.layout_principal = QHBoxLayout()
         self.widget_central.setLayout(self.layout_principal)
 
+        # Columna izquierda con ancho fijo
+        self.widget_izquierda = QWidget()
+        self.layout_izquierda = QVBoxLayout()
+        self.layout_izquierda.setAlignment(Qt.AlignTop)
+        self.widget_izquierda.setLayout(self.layout_izquierda)
+        self.widget_izquierda.setFixedWidth(300)
+
+        # Logotipo de Magic
+        self.logo_label = QLabel()
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        logo_path = os.path.join(base_dir, "src", "App_images", "magic-logo.webp")  # Corregido a magic-logo.webp
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path).scaled(200, 200, Qt.KeepAspectRatio)
+            self.logo_label.setPixmap(pixmap)
+            self.logo_label.setAlignment(Qt.AlignCenter)
+        else:
+            self.logo_label.setText(f"Logotipo no encontrado en: {logo_path}")
+        self.layout_izquierda.addWidget(self.logo_label)
+
         # Botones de navegación
-        self.layout_botones = QHBoxLayout()
         self.boton_ver_coleccion = QPushButton("Ver colección")
         self.boton_ver_coleccion.clicked.connect(self.mostrar_colecciones)
+        self.layout_izquierda.addWidget(self.boton_ver_coleccion)
+
         self.boton_agregar_cartas = QPushButton("Añadir cartas a la colección")
-        self.boton_agregar_cartas.clicked.connect(self.mostrar_dialogo_busqueda)
-        self.layout_botones.addWidget(self.boton_ver_coleccion)
-        self.layout_botones.addWidget(self.boton_agregar_cartas)
-        self.layout_principal.addLayout(self.layout_botones)
+        self.boton_agregar_cartas.clicked.connect(self.mostrar_opcion_busqueda)
+        self.layout_izquierda.addWidget(self.boton_agregar_cartas)
+
+        # Relación de cartas (placeholder por ahora)
+        self.label_relacion_cartas = QLabel("Cartas: 0 / 25000")
+        self.label_relacion_cartas.setAlignment(Qt.AlignCenter)
+        self.layout_izquierda.addWidget(self.label_relacion_cartas)
+
+        # Espaciador para centrar verticalmente
+        self.layout_izquierda.addStretch()
+
+        # Botones inferiores
+        self.layout_botones_inferiores = QHBoxLayout()
+        self.boton_cerrar = QPushButton("Cerrar")
+        self.boton_cerrar.clicked.connect(self.close)
+        self.layout_botones_inferiores.addWidget(self.boton_cerrar)
+
+        self.boton_settings = QPushButton("Settings")
+        self.boton_settings.setEnabled(False)
+        self.layout_botones_inferiores.addWidget(self.boton_settings)
+
+        self.layout_izquierda.addLayout(self.layout_botones_inferiores)
+
+        # Añadir columna izquierda al layout principal
+        self.layout_principal.addWidget(self.widget_izquierda)
+
+        # Columna derecha
+        self.layout_derecha = QVBoxLayout()
 
         # Tabla para mostrar datos
         self.tabla = QTableWidget()
-        self.layout_principal.addWidget(self.tabla)
+        self.layout_derecha.addWidget(self.tabla)
 
-        # Layout para búsqueda de cartas (inicialmente oculto)
+        # Layout para búsqueda de cartas
         self.layout_busqueda = QHBoxLayout()
         self.input_busqueda = QLineEdit()
         self.input_busqueda.setPlaceholderText("Buscar carta (ejemplo: Castle)...")
@@ -77,9 +123,13 @@ class MagicCollectionApp(QMainWindow):
         self.boton_buscar.clicked.connect(self.buscar_cartas)
         self.layout_busqueda.addWidget(self.input_busqueda)
         self.layout_busqueda.addWidget(self.boton_buscar)
-        self.layout_principal.addLayout(self.layout_busqueda)
-        self.layout_busqueda_widget = self.layout_principal.itemAt(self.layout_principal.count() - 1).layout()
-        self.layout_busqueda_widget.setAlignment(Qt.AlignTop)
+        self.layout_derecha.addLayout(self.layout_busqueda)
+        # Ocultar el layout de búsqueda al inicio
+        self.input_busqueda.setVisible(False)
+        self.boton_buscar.setVisible(False)
+
+        # Añadir columna derecha al layout principal
+        self.layout_principal.addLayout(self.layout_derecha)
 
         # Instancia de la API
         self.scryfall = ScryFall()
@@ -88,6 +138,9 @@ class MagicCollectionApp(QMainWindow):
         self.mostrar_colecciones()
 
     def mostrar_colecciones(self):
+        self.input_busqueda.setVisible(False)
+        self.boton_buscar.setVisible(False)
+
         self.tabla.clear()
         self.tabla.setRowCount(0)
         self.tabla.setColumnCount(5)
@@ -104,7 +157,9 @@ class MagicCollectionApp(QMainWindow):
 
         self.tabla.resizeColumnsToContents()
 
-    def mostrar_dialogo_busqueda(self):
+    def mostrar_opcion_busqueda(self):
+        self.input_busqueda.setVisible(True)
+        self.boton_buscar.setVisible(True)
         self.input_busqueda.clear()
         self.tabla.clear()
         self.tabla.setRowCount(0)
@@ -134,7 +189,6 @@ class MagicCollectionApp(QMainWindow):
 
         self.tabla.resizeColumnsToContents()
 
-        # Mostrar diálogo para seleccionar carta y colección
         colecciones = obtener_colecciones()
         if not colecciones:
             QMessageBox.warning(self, "Advertencia", "No hay colecciones disponibles. Sincroniza primero.")
